@@ -1,0 +1,12 @@
+---
+title: "STAC67 Final Project Report"
+author: "Nilson Gao, Vedat Goktepe, Rebecca Han, Ben Wang"
+date: "2024-12-03"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+library(leaps)
+```
+# Section 1
+
+This is a Rmarkdown file to be used for the final project.
