@@ -58,11 +58,7 @@ p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() + theme_minimal
 p2 <- ggplot(clean_data, aes(x = horsepower, y = price)) + geom_point() + theme_minimal() + ggtitle("horsepower vs price")
 p3 <- ggplot(clean_data, aes(x = car_mileage, y = price)) + geom_point() + theme_minimal() + ggtitle("car_mileage vs price") # needs outlier removed
 p4 <- ggplot(clean_data, aes(x = engine_capacity, y = price)) + geom_point() + theme_minimal() + ggtitle("engine_capacity vs price")
-p1
-p2
-p3
-p4
-grid.arrange(p1,p2,p3,p4,ncol=4)
+grid.arrange(p1,p2,p3,p4,ncol=2)
 ```
 
 We notice that there are some influential points (and possibly leverage points) on the car_mileage predictor. Let's get rid of those using hat values and semistudentized residuals to detect which ones are too high:
