@@ -43,6 +43,7 @@ clean_data <- na.omit(clean_data)
 
 clean_data$age <- 2024 - clean_data$year
 clean_data$horsepower<-gsub(pattern = "^(\\d+) HP.*", replacement = "\\1", clean_data$horsepower)
+clean_data$horsepower<-as.numeric(clean_data$horsepower)
 
 # making the variable names easier to process
 names(clean_data) <- gsub(pattern = "\\.\\..*", replacement = "", names(clean_data))
@@ -64,22 +65,112 @@ grid.arrange(p1,p2,p3,p4,ncol=2)
 We notice that there are some influential points (and possibly leverage points) on the car_mileage predictor. Let's get rid of those using hat values and semistudentized residuals to detect which ones are too high:
 
 ```{r}
+#cleaning for car mileage
 model <- lm(price ~ car_mileage, data = clean_data)
 
-#leverage points removal
+# leverage points (outliers in x) removal
 leverage <- hatvalues(model)
 threshold <- 2 * length(coef(model)) / nrow(clean_data)
-leverage_points <- which(leverage > threshold)
-clean_data <- clean_data[-leverage_points, ]
+leverage_points <- which(leverage > threshold | leverage > 0.5)
+clean_cm_data <- clean_data[-leverage_points, ] # clean_cm_data filters out for car_mileage ONLY. This way we can still do comprehensive analysis on other predictors
 
-# influential points removal
+clean_cm_data <- subset(clean_cm_data, car_mileage <= 750000) # trimming x-axis data, will cause bias. note: 84(?) values removed
+
+# outliers in y removal
+n <- nrow(clean_data)
+print(n)
+threshold <- qt(1 - (0.05/(2*n)), n-2-1) # considering p'=2 (intercept and car_mileage), could be wrong -- double check
+print(threshold)
 studentized_residuals <- rstudent(model)
-outlier_indices <- which(abs(studentized_residuals) > 2)
-clean_data <- clean_data[-outlier_indices, ]
+outlier_indices <- which(abs(studentized_residuals) > threshold)
+clean_cm_data <- clean_cm_data[-outlier_indices, ]
 
-ggplot(clean_data, aes(x = car_mileage, y = price)) + geom_point() + theme_minimal() + ggtitle("car_mileage vs price") 
-# TO DO: there is a bit of change here, it's better than before... but still pretty bad. If possible (and reasonable), do more cleaning
+#cleaning for horsepower
+model <- lm(price ~ horsepower, data = clean_data)
+
+# leverage points (outliers in x) removal
+leverage <- hatvalues(model)
+threshold <- 2 * length(coef(model)) / nrow(clean_data)
+leverage_points <- which(leverage > threshold | leverage > 0.5)
+clean_hp_data <- clean_data[-leverage_points, ]
+
+#clean_hp_data <- subset(clean_data, price <= 60000) # trimming y-axis data, will cause bias. 
+
+# outliers in y removal
+n <- nrow(clean_data)
+print(n)
+threshold <- qt(1 - (0.05/(2*n)), n-2-1) # considering p'=2 (intercept and horsepower), could be wrong -- double check
+print(threshold)
+studentized_residuals <- rstudent(model)
+outlier_indices <- which(abs(studentized_residuals) > threshold)
+clean_hp_data <- clean_hp_data[-outlier_indices, ]
+
+# TO DO: (?) should we repeat this process for the other continuous variables? 
+
+ggplot(clean_cm_data, aes(x = car_mileage, y = price)) + geom_point() + theme_minimal() + ggtitle("car_mileage vs price") 
+ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() + theme_minimal() + ggtitle("horsepower vs price") 
 ```
+
+After outlier cleaning, let's check on the scatter plots again to see if these continuous variables have a significant influence on the car price:
+
+```{R}
+p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("age vs price")
+p2 <- ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("horsepower vs price")
+p3 <- ggplot(clean_cm_data, aes(x = car_mileage, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("car_mileage vs price") # needs outlier removed
+p4 <- ggplot(clean_data, aes(x = engine_capacity, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("engine_capacity vs price")
+grid.arrange(p1,p2,p3,p4,ncol=2)
+```
+
+
+[note: minor concern... if you look at the p-value and t-value for car_mileage, you'll notice that we fail to rejct H_0: beta_1=0 for it...? does this mean we should exclude it...?]
+```{R}
+model <- lm(price ~ age, data = clean_data)
+summary(model)
+model <- lm(price ~ horsepower, data = clean_data)
+summary(model)
+model <- lm(price ~ car_mileage, data = clean_data)
+summary(model)
+model <- lm(price ~ engine_capacity, data = clean_data)
+summary(model)
+```
+
+Now moving on to the categorical variables.
+
+[TO DO: There's some weird charts that the exemplar from last yr uses. If anyone can figure out how to make and interpret those that'd be great.]
+
+We need to make sure that there's no correlation between the different categorical variables.
+
+```{R}
+# Select numeric predictors only
+numeric_data <- clean_data[sapply(clean_data, is.numeric)]
+
+# Remove specific variables like 'Year'
+numeric_data <- numeric_data[, !names(numeric_data) %in% c("year")]
+
+# Compute correlation matrix
+cor_matrix <- cor(numeric_data, use = "complete.obs")
+
+# Plot correlation matrix with ggcorrplot
+ggcorrplot(
+  cor_matrix, 
+  method = "square",       # Style of the plot
+  type = "lower",          # Show lower triangular correlation matrix
+  lab = TRUE,              # Display correlation values inside the cells
+  lab_size = 3,            # Adjust size of labels
+  title = "Correlation Heatmap",  # Add a title
+  colors = c("blue", "white", "red") # Define color gradient (negative, neutral, positive correlations)
+)
+```
+
+[Note: based off of this correlation map:
+- Remove one of views/favourites since this has strong correlation (but I think we're getting rid of both anyways)
+- Ensure no multicollinearity between horsepower and engine_capacity (VIF?)
+- Check to see if we can remove seats_amount and car_mileage from the model since they don't give much information on price it looks like
+  - this is just a little suspicious since usually more mileage should mean cheaper car? just make sure to do lots of investigation before removing it.]
+
+
+
+
 
 Before we delve further into data analysis, we notice that there's some information in our dataset that is unlikely to be relevant, such as how many views or favourites the car posting gets, or the date of which it was posted. However, we need to run a t-test to make sure that those variables indeed do not have any influence on the final price of the car.
 
