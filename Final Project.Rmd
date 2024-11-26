@@ -64,6 +64,47 @@ grid.arrange(p1,p2,p3,p4,ncol=2)
 
 We notice that there are some influential points (and possibly leverage points) on the car_mileage predictor. Let's get rid of those using hat values and semistudentized residuals to detect which ones are too high:
 
+THIS MAY NEED TRIMMING BUT IDK - Nilson
+
+```{r}
+outlier_clean <- function(data, model) {
+  #removal of points in x (leverage points)
+  leverage <- hatvalues(model)
+  threshold <- 2* length(coef(model)) / nrow(data)
+  leverage_points <- which(leverage > threshold | leverage > 0.5)
+  clean <- data[-leverage_points,]
+  
+  n <- nrow(data)
+  threshold <- qt(1 - (0.05/(2*n)), n-2-1)
+  semistudentized_residuals <- rstandard(model)
+  outlier_points <- which(abs(semistudentized_residuals) > threshold)
+  clean <- clean[-outlier_points,]
+  
+  cooks_d <- cooks.distance(model)
+  cooks_threshold <- 4/n #might need to change
+  influential_points <- which(cooks_d > cooks_threshold)
+  clean <- clean[-influential_points,]
+  return(clean)
+}
+
+cm_model <- lm(price ~ car_mileage, data = clean_data)
+clean_cm <- outlier_clean(clean_data,cm_model)
+
+hp_model <- lm(price ~ horsepower, data = clean_data)
+clean_hp <- outlier_clean(clean_data, hp_model)
+
+age_model <- lm(price ~ age, data = clean_data)
+clean_age <- outlier_clean(clean_data, age_model)
+
+ec_model <- lm(price ~ engine_capacity, data = clean_data)
+clean_ec <- outlier_clean(clean_data, ec_model)
+
+ggplot(clean_cm, aes(x = car_mileage, y = price)) + geom_point() + theme_minimal() + ggtitle("car_mileage vs price") 
+ggplot(clean_hp, aes(x = horsepower, y = price)) + geom_point() + theme_minimal() + ggtitle("horsepower vs price")
+ggplot(clean_age, aes(x = age, y = price)) + geom_point() + theme_minimal() + ggtitle("age vs price")
+ggplot(clean_ec, aes(x = engine_capacity, y = price)) + geom_point() + theme_minimal() + ggtitle("engine_capacity vs price")
+```
+
 ```{r}
 #cleaning for car mileage
 model <- lm(price ~ car_mileage, data = clean_data)
@@ -121,8 +162,8 @@ p4 <- ggplot(clean_data, aes(x = engine_capacity, y = price)) + geom_point() + g
 grid.arrange(p1,p2,p3,p4,ncol=2)
 ```
 
-
 [note: minor concern... if you look at the p-value and t-value for car_mileage, you'll notice that we fail to rejct H_0: beta_1=0 for it...? does this mean we should exclude it...?]
+
 ```{R}
 model <- lm(price ~ age, data = clean_data)
 summary(model)
@@ -162,15 +203,7 @@ ggcorrplot(
 )
 ```
 
-[Note: based off of this correlation map:
-- Remove one of views/favourites since this has strong correlation (but I think we're getting rid of both anyways)
-- Ensure no multicollinearity between horsepower and engine_capacity (VIF?)
-- Check to see if we can remove seats_amount and car_mileage from the model since they don't give much information on price it looks like
-  - this is just a little suspicious since usually more mileage should mean cheaper car? just make sure to do lots of investigation before removing it.]
-
-
-
-
+[Note: based off of this correlation map: - Remove one of views/favourites since this has strong correlation (but I think we're getting rid of both anyways) - Ensure no multicollinearity between horsepower and engine_capacity (VIF?) - Check to see if we can remove seats_amount and car_mileage from the model since they don't give much information on price it looks like - this is just a little suspicious since usually more mileage should mean cheaper car? just make sure to do lots of investigation before removing it.]
 
 Before we delve further into data analysis, we notice that there's some information in our dataset that is unlikely to be relevant, such as how many views or favourites the car posting gets, or the date of which it was posted. However, we need to run a t-test to make sure that those variables indeed do not have any influence on the final price of the car.
 
