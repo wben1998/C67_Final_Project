@@ -24,12 +24,13 @@ library(MASS)
 
 # Research Context
 
-The objective of this model is to investigate the intrinsic factors that affect Price of Cars in Serbia based off detailed car listings provided by an online marketplace where [TO DO - yap about car price significance, what question we want to answer, how this can be beneficial knowledge for consumers/dealerships/car companies/manufacturers/etc.]
+The objective of this model is to investigate the intrinsic factors that affect Price of Cars in Serbia based off detailed car listings provided by an online marketplace where [TO DO - yap about car price significance, what question we want to answer, how this can be beneficial knowledge for consumers/dealerships/car companies/manufacturers/etc.] [For consumers it might be beneficial to know predicted prices to avoid getting overcharged]
 
 # Exploratory Data Analysis
 
 ```{r}
-# read data file, published in 2024 on https://www.kaggle.com/datasets/mmakarovlab/serbia-car-sales-prices?resource=download
+# read data file, published in 2024 on
+# https://www.kaggle.com/datasets/mmakarovlab/serbia-car-sales-prices?resource=download
 car_price_data <- read.csv("serbia_car_sales_price_2024.csv")
 
 ```
@@ -55,10 +56,14 @@ summary(clean_data)
 Now, we want to check on which variables are good predictors. For the continuous variables, we first plot scatter graphs for each variable against car price:
 
 ```{r}
-p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() + theme_minimal() + ggtitle("age vs price")
-p2 <- ggplot(clean_data, aes(x = horsepower, y = price)) + geom_point() + theme_minimal() + ggtitle("horsepower vs price")
-p3 <- ggplot(clean_data, aes(x = car_mileage, y = price)) + geom_point() + theme_minimal() + ggtitle("car_mileage vs price") # needs outlier removed
-p4 <- ggplot(clean_data, aes(x = engine_capacity, y = price)) + geom_point() + theme_minimal() + ggtitle("engine_capacity vs price")
+p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("age vs price")
+p2 <- ggplot(clean_data, aes(x = horsepower, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("horsepower vs price")
+p3 <- ggplot(clean_data, aes(x = car_mileage, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("car_mileage vs price") # needs outlier removed
+p4 <- ggplot(clean_data, aes(x = engine_capacity, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("engine_capacity vs price")
 grid.arrange(p1,p2,p3,p4,ncol=2)
 ```
 
@@ -99,10 +104,14 @@ clean_age <- outlier_clean(clean_data, age_model)
 ec_model <- lm(price ~ engine_capacity, data = clean_data)
 clean_ec <- outlier_clean(clean_data, ec_model)
 
-ggplot(clean_cm, aes(x = car_mileage, y = price)) + geom_point() + theme_minimal() + ggtitle("car_mileage vs price") 
-ggplot(clean_hp, aes(x = horsepower, y = price)) + geom_point() + theme_minimal() + ggtitle("horsepower vs price")
-ggplot(clean_age, aes(x = age, y = price)) + geom_point() + theme_minimal() + ggtitle("age vs price")
-ggplot(clean_ec, aes(x = engine_capacity, y = price)) + geom_point() + theme_minimal() + ggtitle("engine_capacity vs price")
+ggplot(clean_cm, aes(x = car_mileage, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("car_mileage vs price") 
+ggplot(clean_hp, aes(x = horsepower, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("horsepower vs price")
+ggplot(clean_age, aes(x = age, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("age vs price")
+ggplot(clean_ec, aes(x = engine_capacity, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("engine_capacity vs price")
 ```
 
 ```{r}
@@ -113,14 +122,18 @@ model <- lm(price ~ car_mileage, data = clean_data)
 leverage <- hatvalues(model)
 threshold <- 2 * length(coef(model)) / nrow(clean_data)
 leverage_points <- which(leverage > threshold | leverage > 0.5)
-clean_cm_data <- clean_data[-leverage_points, ] # clean_cm_data filters out for car_mileage ONLY. This way we can still do comprehensive analysis on other predictors
+# clean_cm_data filters out for car_mileage ONLY.
+# This way we can still do comprehensive analysis on other predictors
+clean_cm_data <- clean_data[-leverage_points, ]
 
-clean_cm_data <- subset(clean_cm_data, car_mileage <= 750000) # trimming x-axis data, will cause bias. note: 84(?) values removed
+# trimming x-axis data, will cause bias. note: 84(?) values removed
+clean_cm_data <- subset(clean_cm_data, car_mileage <= 750000)
 
 # outliers in y removal
 n <- nrow(clean_data)
 print(n)
-threshold <- qt(1 - (0.05/(2*n)), n-2-1) # considering p'=2 (intercept and car_mileage), could be wrong -- double check
+# considering p'=2 (intercept and car_mileage), could be wrong -- double check
+threshold <- qt(1 - (0.05/(2*n)), n-2-1) 
 print(threshold)
 studentized_residuals <- rstudent(model)
 outlier_indices <- which(abs(studentized_residuals) > threshold)
@@ -140,7 +153,8 @@ clean_hp_data <- clean_data[-leverage_points, ]
 # outliers in y removal
 n <- nrow(clean_data)
 print(n)
-threshold <- qt(1 - (0.05/(2*n)), n-2-1) # considering p'=2 (intercept and horsepower), could be wrong -- double check
+# considering p'=2 (intercept and horsepower), could be wrong -- double check
+threshold <- qt(1 - (0.05/(2*n)), n-2-1)
 print(threshold)
 studentized_residuals <- rstudent(model)
 outlier_indices <- which(abs(studentized_residuals) > threshold)
@@ -148,17 +162,27 @@ clean_hp_data <- clean_hp_data[-outlier_indices, ]
 
 # TO DO: (?) should we repeat this process for the other continuous variables? 
 
-ggplot(clean_cm_data, aes(x = car_mileage, y = price)) + geom_point() + theme_minimal() + ggtitle("car_mileage vs price") 
-ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() + theme_minimal() + ggtitle("horsepower vs price") 
+ggplot(clean_cm_data, aes(x = car_mileage, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("car_mileage vs price") 
+ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() +
+  theme_minimal() + ggtitle("horsepower vs price") 
 ```
 
 After outlier cleaning, let's check on the scatter plots again to see if these continuous variables have a significant influence on the car price:
 
 ```{R}
-p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("age vs price")
-p2 <- ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("horsepower vs price")
-p3 <- ggplot(clean_cm_data, aes(x = car_mileage, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("car_mileage vs price") # needs outlier removed
-p4 <- ggplot(clean_data, aes(x = engine_capacity, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("engine_capacity vs price")
+p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
+  ggtitle("age vs price")
+p2 <- ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
+  ggtitle("horsepower vs price")
+p3 <- ggplot(clean_cm_data, aes(x = car_mileage, y = price)) + geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
+  ggtitle("car_mileage vs price") # needs outlier removed
+p4 <- ggplot(clean_data, aes(x = engine_capacity, y = price)) + geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
+  ggtitle("engine_capacity vs price")
 grid.arrange(p1,p2,p3,p4,ncol=2)
 ```
 
@@ -271,14 +295,16 @@ age_graph <- ggplot(non_empty_age, aes(x = "", y = age)) +
   geom_boxplot(width = 0.1, alpha = 0.8) +    
   labs(title = "Age Distribution", y = "Age", x = "")
 
-non_empty_hp <- data.frame(horsepower = as.integer(clean_data$horsepower[clean_data$horsepower != ""]))
+non_empty_hp <- data.frame(horsepower =
+                             as.integer(clean_data$horsepower[clean_data$horsepower != ""]))
 
 horsepower_graph <- ggplot(non_empty_hp, aes(x = "", y = horsepower)) +
   geom_violin(fill = "blue", alpha = 0.5) +
   geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.5) +
   labs(title = "Horsepower Distribution", y = "Horsepower", x = "")
 
-non_empty_cm <- data.frame(car_mileage = as.integer(clean_data$car_mileage[clean_data$car_mileage != ""]))
+non_empty_cm <- data.frame(car_mileage =
+                             as.integer(clean_data$car_mileage[clean_data$car_mileage != ""]))
 
 # Plot for "car_mileage"
 car_mileage_graph <- ggplot(clean_data, aes(x = "", y = car_mileage)) +
@@ -286,7 +312,8 @@ car_mileage_graph <- ggplot(clean_data, aes(x = "", y = car_mileage)) +
   geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.5) +
   labs(title = "Car Mileage Distribution", y = "Mileage", x = "")
 
-non_empty_ec <- data.frame(engine_capacity = as.integer(clean_data$engine_capacity[clean_data$engine_capacity != ""]))
+non_empty_ec <- data.frame(engine_capacity =
+                             as.integer(clean_data$engine_capacity[clean_data$engine_capacity != ""]))
 
 # Plot for "engine_capacity"
 engine_capacity_graph <- ggplot(clean_data, aes(x = "", y = engine_capacity)) +
@@ -294,7 +321,8 @@ engine_capacity_graph <- ggplot(clean_data, aes(x = "", y = engine_capacity)) +
   geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.5) +
   labs(title = "Engine Capacity Distribution", y = "Capacity", x = "")
 
-all_plots <- age_graph + horsepower_graph + car_mileage_graph + engine_capacity_graph + plot_layout(ncol = 2) 
+all_plots <- age_graph + horsepower_graph + car_mileage_graph + engine_capacity_graph +
+  plot_layout(ncol =2) 
 print(all_plots)
 ```
 
