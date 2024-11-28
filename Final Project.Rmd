@@ -209,6 +209,40 @@ Before we delve further into data analysis, we notice that there's some informat
 
 [TO DO: - get rid of certain variables like Views etc., justify using math/stats (can't just say "pretty sure it won't affect anything") - pretty sure it's just a basic beta_i = 0 t-test? correct me if I'm wrong]
 
+
+## Categorical Vairable Analysis
+
+```{r}
+# List of all categorical variables
+categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
+                      "color", "type_of_drive", "doors", "fuel", 
+                      "car_type", "gearbox")
+
+# Create individual plots for each categorical variable
+for (var in categorical_vars) {
+  
+  # Filter non-empty data for the current variable
+  non_empty_data <- clean_data[!is.na(clean_data[[var]]) & !is.na(clean_data$price), ]
+
+  # Check if the variable is a factor; if not, convert it
+  if (!is.factor(non_empty_data[[var]])) {
+    non_empty_data[[var]] <- as.factor(non_empty_data[[var]])
+  }
+  
+  # Create the violin + box plot
+  plot <- ggplot(non_empty_data, aes(x = .data[[var]], y = price)) +
+    geom_violin(fill = "blue", alpha = 0.5) +
+    geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.5) +
+    labs(title = paste("Price vs", var), y = "Price", x = "") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    print(plot)
+}
+
+
+```
+
+
 [from here on is a load of garbage :( if you think you can help fix it, you're more than welcome. Though, it might be easier to just use this as code reference
 
 -Rebecca]
