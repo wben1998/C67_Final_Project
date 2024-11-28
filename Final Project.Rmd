@@ -267,6 +267,45 @@ for (var in categorical_vars) {
 ```
 
 
+## Model
+
+```{r}
+# List of all the variables to include in the model
+categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
+                      "color", "type_of_drive", "doors", "fuel", 
+                      "car_type", "gearbox")
+
+# Convert categorical variables to factors
+clean_data[categorical_vars] <- lapply(clean_data[categorical_vars], as.factor)
+
+# Check if columns like car_name are factors or should be treated as character (if needed)
+# Here we assume "car_name" is a unique identifier, so it should be excluded from the model
+clean_data$car_name <- as.factor(clean_data$car_name)
+
+# Fit the full linear model (including all variables except car_name as a unique identifier)
+full_model <- lm(price ~ views + favorite + post_info + year + A_C + emission_class +
+                 seats_amount + horsepower + color + car_mileage + engine_capacity + 
+                 type_of_drive + doors + fuel + car_type + gearbox, data = clean_data)
+
+# Summary of the model to see the coefficients and performance
+summary(full_model)
+
+# Check for multicollinearity (VIF - Variance Inflation Factor)
+vif(full_model)
+
+# Diagnostics: Check residuals for any patterns
+par(mfrow = c(2, 2))  # Multiple plots in one window
+plot(full_model)
+
+step = stepAIC(full_model, trace = FALSE, direction = "backward")
+step$anova
+
+final_model = lm(price ~ views + favorite + post_info + year + A_C + emission_class +
+                   seats_amount + horsepower + engine_capacity + type_of_drive + fuel + 
+                   car_type + gearbox, data = clean_data)
+summary(final_model)
+```
+
 [from here on is a load of garbage :( if you think you can help fix it, you're more than welcome. Though, it might be easier to just use this as code reference
 
 -Rebecca]
