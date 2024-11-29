@@ -3,9 +3,9 @@ title: "STAC67 Final Project Report"
 author: "Nilson Gao, Vedat Goktepe, Rebecca Han, Ben Wang"
 date: "2024-12-03"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
 ---
 
 [TO DO: make this in title page as required by rubric]
@@ -171,7 +171,7 @@ ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() +
 
 After outlier cleaning, let's check on the scatter plots again to see if these continuous variables have a significant influence on the car price:
 
-```{R}
+```{r}
 p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() +
   geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
   ggtitle("age vs price")
@@ -189,7 +189,7 @@ grid.arrange(p1,p2,p3,p4,ncol=2)
 
 [note: minor concern... if you look at the p-value and t-value for car_mileage, you'll notice that we fail to rejct H_0: beta_1=0 for it...? does this mean we should exclude it...?]
 
-```{R}
+```{r}
 model <- lm(price ~ age, data = clean_data)
 summary(model)
 model <- lm(price ~ horsepower, data = clean_hp_data)
@@ -206,7 +206,7 @@ Now moving on to the categorical variables.
 
 We need to make sure that there's no correlation between the different categorical variables.
 
-```{R}
+```{r}
 # Select numeric predictors only
 numeric_data <- clean_data[sapply(clean_data, is.numeric)]
 
@@ -233,7 +233,6 @@ ggcorrplot(
 Before we delve further into data analysis, we notice that there's some information in our dataset that is unlikely to be relevant, such as how many views or favourites the car posting gets, or the date of which it was posted. However, we need to run a t-test to make sure that those variables indeed do not have any influence on the final price of the car.
 
 [TO DO: - get rid of certain variables like Views etc., justify using math/stats (can't just say "pretty sure it won't affect anything") - pretty sure it's just a basic beta_i = 0 t-test? correct me if I'm wrong]
-
 
 ## Categorical Vairable Analysis
 
@@ -266,7 +265,6 @@ for (var in categorical_vars) {
 
 
 ```
-
 
 ## Model
 
@@ -373,7 +371,8 @@ summary(final_model)
 ```
 
 Diagnostics:
-```{R}
+
+```{r}
 # Load necessary library
 library(MASS)
 
@@ -445,13 +444,14 @@ if (bp_test$p.value < 0.05) {
 ```
 
 Using our hold-out validation set, we can perform a little bit more verification:
-```{R}
+
+```{r}
 # validation data
-#validation_data <- car_price_data
+validation_data <- car_price_data
 validation_data[validation_data == ""] <- NA
-sum(is.na(car_price_data$emission_class))  # Number of rows with missing emission_class
-validation_data <- car_price_data[is.na(car_price_data$emission_class) & 
-                                  rowSums(is.na(car_price_data)) == 1, ]
+sum(is.na(validation_data$emission_class))  # Number of rows with missing emission_class
+validation_data <- validation_data[is.na(validation_data$emission_class), ]
+validation_data <- validation_data[(validation_data$color != 'pink'), ]
 
 validation_data$age <- 2024 - validation_data$year
 validation_data$horsepower<-gsub(pattern = "^(\\d+) HP.*", replacement = "\\1", validation_data$horsepower)
@@ -480,33 +480,30 @@ validation_data <- validation_data[, names(validation_data) != "emission_class"]
 # Step 1: Obtain predicted values for the validation set
 model_without_emission <- lm(update(formula(final_model), . ~ . - emission_class), data = clean_data)
 pred_validation <- predict(model_without_emission, newdata = validation_data)
+train_validation <- predict(model_without_emission, newdata = clean_data)
 
 # Step 2: Compute prediction errors
 # Assuming 'price' is the dependent variable in validation_data
 delta_validation <- validation_data$price - pred_validation
+delta2_validation <- clean_data$price - train_validation
+delta_validation <- na.omit(delta_validation)  # Remove missing errors
+delta2_validation <- na.omit(delta2_validation)  # Remove missing errors
 
 # Step 3: Compute MSPE
-delta_validation <- validation_data$price - pred_validation
 MSPE <- sum(delta_validation^2) / length(delta_validation)
+MSPE2 <- sum(delta2_validation^2) / length(delta2_validation)
 
 # Step 4: Print MSPE
 MSPE
-
-sum(is.na(pred_validation))  # Count of missing predicted values
-sum(is.na(validation_data$price))  # Count of missing actual values
-nrow(validation_data)
-delta_validation <- validation_data$price - pred_validation
-delta_validation <- na.omit(delta_validation)  # Remove missing errors
-MSPE <- sum(delta_validation^2) / length(delta_validation)
-MSPE
-
+MSPE2
 
 ```
 
 WLS is a next step since we failed heteroelasticity (equal variance) assumption. This means that we'd include a weight vector when fitting the model, and hopefully this would fix the equal variance problem.
 
 I don't really want to keep this code, but leaving this here in case someone wants to work with it.
-```{R}
+
+```{r}
 # Calculate weights based on residuals
 weights <- 1 / (resid(final_model)^2)
 
