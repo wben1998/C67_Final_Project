@@ -3,9 +3,9 @@ title: "STAC67 Final Project Report"
 author: "Nilson Gao, Vedat Goktepe, Rebecca Han, Ben Wang"
 date: "2024-12-03"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 [TO DO: make this in title page as required by rubric]
@@ -32,6 +32,7 @@ The objective of this model is to investigate the intrinsic factors that affect 
 # read data file, published in 2024 on
 # https://www.kaggle.com/datasets/mmakarovlab/serbia-car-sales-prices?resource=download
 car_price_data <- read.csv("serbia_car_sales_price_2024.csv")
+validation_data <- read.csv("serbia_car_sales_price_2024.csv")
 
 ```
 
@@ -191,9 +192,9 @@ grid.arrange(p1,p2,p3,p4,ncol=2)
 ```{R}
 model <- lm(price ~ age, data = clean_data)
 summary(model)
-model <- lm(price ~ horsepower, data = clean_data)
+model <- lm(price ~ horsepower, data = clean_hp_data)
 summary(model)
-model <- lm(price ~ car_mileage, data = clean_data)
+model <- lm(price ~ car_mileage, data = clean_cm_data)
 summary(model)
 model <- lm(price ~ engine_capacity, data = clean_data)
 summary(model)
@@ -306,9 +307,233 @@ final_model = lm(price ~ views + favorite + post_info + year + A_C + emission_cl
 summary(final_model)
 ```
 
+## Model 2
+
+```{r}
+# List of all the variables to include in the model
+categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
+                      "color", "type_of_drive", "doors", "fuel", 
+                      "car_type", "gearbox")
+
+# Convert categorical variables to factors
+clean_data[categorical_vars] <- lapply(clean_data[categorical_vars], as.factor)
+
+# Check if columns like car_name are factors or should be treated as character (if needed)
+# Here we assume "car_name" is a unique identifier, so it should be excluded from the model
+clean_data$car_name <- as.factor(clean_data$car_name)
+
+# Fit the full linear model (including all variables except car_name as a unique identifier)
+#full_model <- lm(price ~ post_info + age + A_C + emission_class +
+ #                seats_amount + horsepower + color + car_mileage + engine_capacity + 
+  #               type_of_drive + doors + fuel + car_type + gearbox, data = clean_data)
+
+# Summary of the model to see the coefficients and performance
+#summary(full_model)
+
+# Fit the linear model manually specifying all main effects and interaction terms
+full_model <- lm(price ~ 
+  age + car_mileage + engine_capacity + horsepower +  # Continuous variables
+  post_info + A_C + seats_amount + color + type_of_drive + doors + fuel + car_type + gearbox + # Categorical variables
+  age:post_info + age:A_C + age:seats_amount + age:color + age:type_of_drive + 
+  age:doors + age:fuel + age:car_type + age:gearbox + 
+  car_mileage:post_info + car_mileage:A_C + car_mileage:seats_amount + car_mileage:color + 
+  car_mileage:type_of_drive + car_mileage:doors + car_mileage:fuel + car_mileage:car_type + car_mileage:gearbox + 
+  engine_capacity:post_info + engine_capacity:A_C + engine_capacity:seats_amount + engine_capacity:color + 
+  engine_capacity:type_of_drive + engine_capacity:doors + engine_capacity:fuel + engine_capacity:car_type + engine_capacity:gearbox + 
+  horsepower:post_info + horsepower:A_C + horsepower:seats_amount + horsepower:color + 
+  horsepower:type_of_drive + horsepower:doors + horsepower:fuel + horsepower:car_type + horsepower:gearbox, 
+  data = clean_data)
+print(vif(final_model))
+
+# Diagnostics: Check residuals for any patterns
+par(mfrow = c(2, 2))  # Multiple plots in one window
+plot(full_model)
+
+step = stepAIC(full_model, trace = FALSE, direction = "backward")
+step$anova
+step$call
+
+final_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsepower + 
+     post_info + A_C + seats_amount + color + type_of_drive + 
+     doors + fuel + gearbox + age:A_C + age:seats_amount + 
+     age:color + age:type_of_drive + age:doors + age:fuel + 
+     age:gearbox + car_mileage:post_info + car_mileage:A_C + car_mileage:seats_amount + 
+     car_mileage:type_of_drive + car_mileage:doors + car_mileage:fuel + 
+     car_mileage:gearbox + engine_capacity:post_info + 
+     engine_capacity:A_C + engine_capacity:seats_amount + engine_capacity:type_of_drive + 
+     engine_capacity:fuel + engine_capacity:gearbox + 
+     horsepower:post_info + horsepower:seats_amount + horsepower:color + 
+     horsepower:fuel + horsepower:gearbox, 
+     data = clean_data)
+
+# Check for multicollinearity (VIF - Variance Inflation Factor)
+#print(vif(final_model))
+
+summary(final_model)
+```
+
+Diagnostics:
+```{R}
+# Load necessary library
+library(MASS)
+
+# Box-Cox transformation for `price`
+boxcox_result <- boxcox(final_model, lambda = seq(-2, 2, by = 0.1), main = "Box-Cox Transformation")
+
+# Extract the best lambda (transformation parameter)
+best_lambda <- boxcox_result$x[which.max(boxcox_result$y)]
+cat("Best lambda:", best_lambda, "\n")
+
+# Apply transformation based on best lambda
+if (abs(best_lambda) < 0.1) {
+  clean_data$price <- log(clean_data$price)
+  cat("Applied log transformation to `price`.\n")
+} else {
+  clean_data$price <- (clean_data$price^best_lambda - 1) / best_lambda
+  cat("Applied Box-Cox transformation with lambda =", best_lambda, "to `price`.\n")
+}
+
+n <- nrow(clean_data)
+cooks_d <- cooks.distance(final_model)
+cooks_threshold <- 4/n #might need to change
+influential_points <- which(cooks_d > cooks_threshold)
+clean_data <- clean_data[-which(cooks_d > cooks_threshold), ]
+
+# Refit the model after transformation
+final_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsepower + 
+                     post_info + A_C + seats_amount + color + type_of_drive + 
+                     doors + fuel + gearbox + age:A_C + age:seats_amount + 
+                     age:color + age:type_of_drive + age:doors + age:fuel + 
+                     age:gearbox + car_mileage:post_info + car_mileage:A_C + car_mileage:seats_amount + 
+                     car_mileage:type_of_drive + car_mileage:doors + car_mileage:fuel + 
+                     car_mileage:gearbox + engine_capacity:post_info + 
+                     engine_capacity:A_C + engine_capacity:seats_amount + engine_capacity:type_of_drive + 
+                     engine_capacity:fuel + engine_capacity:gearbox + 
+                     horsepower:post_info + horsepower:seats_amount + horsepower:color + 
+                     horsepower:fuel + horsepower:gearbox, 
+                   data = clean_data)
+#par(mfrow = c(2, 2))  # Multiple plots in one window
+#plot(final_model)
+
+# Residual diagnostics plots
+par(mfrow = c(2, 2))
+plot(final_model)
+
+
+
+# Histogram of residuals
+hist(resid(final_model), breaks = 30, main = "Histogram of Residuals", 
+     xlab = "Residuals", col = "lightblue")
+
+# Q-Q plot
+qqnorm(resid(final_model), main = "Q-Q Plot")
+qqline(resid(final_model), col = "red", lty = 2)
+
+# Load the `lmtest` library
+library(lmtest)
+
+# Perform Breusch-Pagan test
+bp_test <- bptest(final_model)
+print(bp_test)
+
+# Interpretation
+if (bp_test$p.value < 0.05) {
+  cat("Heteroscedasticity detected (p-value < 0.05). Consider WLS.\n")
+} else {
+  cat("No significant heteroscedasticity detected.\n")
+}
+```
+
+Using our hold-out validation set, we can perform a little bit more verification:
+```{R}
+# validation data
+#validation_data <- car_price_data
+validation_data[validation_data == ""] <- NA
+sum(is.na(car_price_data$emission_class))  # Number of rows with missing emission_class
+validation_data <- car_price_data[is.na(car_price_data$emission_class) & 
+                                  rowSums(is.na(car_price_data)) == 1, ]
+
+validation_data$age <- 2024 - validation_data$year
+validation_data$horsepower<-gsub(pattern = "^(\\d+) HP.*", replacement = "\\1", validation_data$horsepower)
+validation_data$horsepower<-as.numeric(validation_data$horsepower)
+
+names(validation_data) <- gsub(pattern = "\\.\\..*", replacement = "", names(validation_data))
+
+# List of all categorical variables
+categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
+                      "color", "type_of_drive", "doors", "fuel", 
+                      "car_type", "gearbox")
+
+for (var in categorical_vars) {
+  if (!is.factor(validation_data[[var]])) {
+      validation_data[[var]] <- as.factor(validation_data[[var]])
+  }
+}
+validation_data <- validation_data[, names(validation_data) != "emission_class"]
+
+# Specify the columns to exclude
+#columns_to_exclude <- c("car_mileage", "column_name2", "column_name3")
+
+# Exclude these columns from validation_data
+#validation_data <- validation_data[, !(names(validation_data) %in% columns_to_exclude)]
+
+# Step 1: Obtain predicted values for the validation set
+model_without_emission <- lm(update(formula(final_model), . ~ . - emission_class), data = clean_data)
+pred_validation <- predict(model_without_emission, newdata = validation_data)
+
+# Step 2: Compute prediction errors
+# Assuming 'price' is the dependent variable in validation_data
+delta_validation <- validation_data$price - pred_validation
+
+# Step 3: Compute MSPE
+delta_validation <- validation_data$price - pred_validation
+MSPE <- sum(delta_validation^2) / length(delta_validation)
+
+# Step 4: Print MSPE
+MSPE
+
+sum(is.na(pred_validation))  # Count of missing predicted values
+sum(is.na(validation_data$price))  # Count of missing actual values
+nrow(validation_data)
+delta_validation <- validation_data$price - pred_validation
+delta_validation <- na.omit(delta_validation)  # Remove missing errors
+MSPE <- sum(delta_validation^2) / length(delta_validation)
+MSPE
+
+
+```
+
+WLS is a next step since we failed heteroelasticity (equal variance) assumption. This means that we'd include a weight vector when fitting the model, and hopefully this would fix the equal variance problem.
+
+I don't really want to keep this code, but leaving this here in case someone wants to work with it.
+```{R}
+# Calculate weights based on residuals
+weights <- 1 / (resid(final_model)^2)
+
+# Fit WLS model
+wls_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsepower + 
+                   post_info + A_C + seats_amount + color + type_of_drive + 
+                   doors + fuel + gearbox + age:A_C + age:seats_amount + 
+                   age:color + age:type_of_drive + age:doors + age:fuel + 
+                   age:gearbox + car_mileage:post_info + car_mileage:A_C + car_mileage:seats_amount + 
+                   car_mileage:type_of_drive + car_mileage:doors + car_mileage:fuel + 
+                   car_mileage:gearbox + engine_capacity:post_info + 
+                   engine_capacity:A_C + engine_capacity:seats_amount + engine_capacity:type_of_drive + 
+                   engine_capacity:fuel + engine_capacity:gearbox + 
+                   horsepower:post_info + horsepower:seats_amount + horsepower:color + 
+                   horsepower:fuel + horsepower:gearbox, 
+                 data = clean_data, weights = weights)
+
+# Check diagnostics for the WLS model
+par(mfrow = c(2, 2))
+plot(wls_model)
+```
+
 [from here on is a load of garbage :( if you think you can help fix it, you're more than welcome. Though, it might be easier to just use this as code reference
 
 -Rebecca]
+
+# dw about for now
 
 ## Outlier Detection
 
