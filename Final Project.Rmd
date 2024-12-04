@@ -10,7 +10,7 @@ output:
 
 [TO DO: make this in title page as required by rubric]
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, echo=FALSE}
 library(dplyr)
 library(tidyr)
 library(leaps)
@@ -20,6 +20,7 @@ library(patchwork)
 library(ggcorrplot)
 library(car)
 library(MASS)
+library(lmtest)
 ```
 
 # Research Context
@@ -49,14 +50,11 @@ clean_data$horsepower<-as.numeric(clean_data$horsepower)
 
 # making the variable names easier to process
 names(clean_data) <- gsub(pattern = "\\.\\..*", replacement = "", names(clean_data))
-
-#will keep this here
-summary(clean_data)
 ```
 
 Now, we want to check on which variables are good predictors. For the continuous variables, we first plot scatter graphs for each variable against car price:
 
-```{r}
+```{r echo=FALSE}
 p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() +
   theme_minimal() + ggtitle("age vs price")
 p2 <- ggplot(clean_data, aes(x = horsepower, y = price)) + geom_point() +
@@ -70,8 +68,6 @@ grid.arrange(p1,p2,p3,p4,ncol=2)
 
 We notice that there are some influential points (and possibly leverage points) on the car_mileage predictor. Let's get rid of those using hat values and semistudentized residuals to detect which ones are too high:
 
-THIS MAY NEED TRIMMING BUT IDK - Nilson
-
 ```{r}
 outlier_clean <- function(data, model) {
   #removal of points in x (leverage points)
@@ -80,14 +76,16 @@ outlier_clean <- function(data, model) {
   leverage_points <- which(leverage > threshold | leverage > 0.5)
   clean <- data[-leverage_points,]
   
+  #remove outliers
   n <- nrow(data)
   threshold <- qt(1 - (0.05/(2*n)), n-2-1)
   semistudentized_residuals <- rstandard(model)
   outlier_points <- which(abs(semistudentized_residuals) > threshold)
   clean <- clean[-outlier_points,]
   
+  #remove influential
   cooks_d <- cooks.distance(model)
-  cooks_threshold <- 4/n #might need to change
+  cooks_threshold <- 4/n
   influential_points <- which(cooks_d > cooks_threshold)
   clean <- clean[-influential_points,]
   return(clean)
@@ -95,6 +93,8 @@ outlier_clean <- function(data, model) {
 
 cm_model <- lm(price ~ car_mileage, data = clean_data)
 clean_cm <- outlier_clean(clean_data,cm_model)
+#trim car mileage for better visibility
+clean_cm2<- subset(clean_cm_data, car_mileage <= 750000)
 
 hp_model <- lm(price ~ horsepower, data = clean_data)
 clean_hp <- outlier_clean(clean_data, hp_model)
@@ -105,108 +105,27 @@ clean_age <- outlier_clean(clean_data, age_model)
 ec_model <- lm(price ~ engine_capacity, data = clean_data)
 clean_ec <- outlier_clean(clean_data, ec_model)
 
-ggplot(clean_cm, aes(x = car_mileage, y = price)) + geom_point() +
-  theme_minimal() + ggtitle("car_mileage vs price") 
-ggplot(clean_hp, aes(x = horsepower, y = price)) + geom_point() +
-  theme_minimal() + ggtitle("horsepower vs price")
-ggplot(clean_age, aes(x = age, y = price)) + geom_point() +
-  theme_minimal() + ggtitle("age vs price")
-ggplot(clean_ec, aes(x = engine_capacity, y = price)) + geom_point() +
-  theme_minimal() + ggtitle("engine_capacity vs price")
-```
-
-```{r}
-#cleaning for car mileage
-model <- lm(price ~ car_mileage, data = clean_data)
-
-# leverage points (outliers in x) removal
-leverage <- hatvalues(model)
-threshold <- 2 * length(coef(model)) / nrow(clean_data)
-leverage_points <- which(leverage > threshold | leverage > 0.5)
-# clean_cm_data filters out for car_mileage ONLY.
-# This way we can still do comprehensive analysis on other predictors
-clean_cm_data <- clean_data[-leverage_points, ]
-
-# trimming x-axis data, will cause bias. note: 84(?) values removed
-clean_cm_data <- subset(clean_cm_data, car_mileage <= 750000)
-
-# outliers in y removal
-n <- nrow(clean_data)
-print(n)
-# considering p'=2 (intercept and car_mileage), could be wrong -- double check
-threshold <- qt(1 - (0.05/(2*n)), n-2-1) 
-print(threshold)
-studentized_residuals <- rstudent(model)
-outlier_indices <- which(abs(studentized_residuals) > threshold)
-clean_cm_data <- clean_cm_data[-outlier_indices, ]
-
-#cleaning for horsepower
-model <- lm(price ~ horsepower, data = clean_data)
-
-# leverage points (outliers in x) removal
-leverage <- hatvalues(model)
-threshold <- 2 * length(coef(model)) / nrow(clean_data)
-leverage_points <- which(leverage > threshold | leverage > 0.5)
-clean_hp_data <- clean_data[-leverage_points, ]
-
-#clean_hp_data <- subset(clean_data, price <= 60000) # trimming y-axis data, will cause bias. 
-
-# outliers in y removal
-n <- nrow(clean_data)
-print(n)
-# considering p'=2 (intercept and horsepower), could be wrong -- double check
-threshold <- qt(1 - (0.05/(2*n)), n-2-1)
-print(threshold)
-studentized_residuals <- rstudent(model)
-outlier_indices <- which(abs(studentized_residuals) > threshold)
-clean_hp_data <- clean_hp_data[-outlier_indices, ]
-
-# TO DO: (?) should we repeat this process for the other continuous variables? 
-
-ggplot(clean_cm_data, aes(x = car_mileage, y = price)) + geom_point() +
-  theme_minimal() + ggtitle("car_mileage vs price") 
-ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() +
-  theme_minimal() + ggtitle("horsepower vs price") 
 ```
 
 After outlier cleaning, let's check on the scatter plots again to see if these continuous variables have a significant influence on the car price:
 
 ```{r}
-p1 <- ggplot(clean_data, aes(x = age, y = price)) + geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
-  ggtitle("age vs price")
-p2 <- ggplot(clean_hp_data, aes(x = horsepower, y = price)) + geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
-  ggtitle("horsepower vs price")
-p3 <- ggplot(clean_cm_data, aes(x = car_mileage, y = price)) + geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
-  ggtitle("car_mileage vs price") # needs outlier removed
-p4 <- ggplot(clean_data, aes(x = engine_capacity, y = price)) + geom_point() +
-  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() +
-  ggtitle("engine_capacity vs price")
-grid.arrange(p1,p2,p3,p4,ncol=2)
+cm_plot <- ggplot(clean_cm, aes(x = car_mileage, y = price)) + geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("car_mileage vs price")
+cm_plot2 <- ggplot(clean_cm2, aes(x = car_mileage, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("car_mileage vs price")
+hp_plot <- ggplot(clean_hp, aes(x = horsepower, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("horsepower vs price")
+age_plot <- ggplot(clean_age, aes(x = age, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("age vs price")
+ec_plot <- ggplot(clean_ec, aes(x = engine_capacity, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("engine_capacity vs price")
+grid.arrange(cm_plot,cm_plot2, hp_plot, age_plot, ec_plot, ncol=3)
 ```
 
-[note: minor concern... if you look at the p-value and t-value for car_mileage, you'll notice that we fail to rejct H_0: beta_1=0 for it...? does this mean we should exclude it...?]
-
-```{r}
-model <- lm(price ~ age, data = clean_data)
-summary(model)
-model <- lm(price ~ horsepower, data = clean_hp_data)
-summary(model)
-model <- lm(price ~ car_mileage, data = clean_cm_data)
-summary(model)
-model <- lm(price ~ engine_capacity, data = clean_data)
-summary(model)
-```
+[TODO: yap about graphs just like in slides]
 
 Now moving on to the categorical variables.
 
-[TO DO: There's some weird charts that the exemplar from last yr uses. If anyone can figure out how to make and interpret those that'd be great.]
-
 We need to make sure that there's no correlation between the different categorical variables.
 
-```{r}
+```{r echo=FALSE}
 # Select numeric predictors only
 numeric_data <- clean_data[sapply(clean_data, is.numeric)]
 
@@ -228,15 +147,13 @@ ggcorrplot(
 )
 ```
 
-[Note: based off of this correlation map: - Remove one of views/favourites since this has strong correlation (but I think we're getting rid of both anyways) - Ensure no multicollinearity between horsepower and engine_capacity (VIF?) - Check to see if we can remove seats_amount and car_mileage from the model since they don't give much information on price it looks like - this is just a little suspicious since usually more mileage should mean cheaper car? just make sure to do lots of investigation before removing it.]
-
 Before we delve further into data analysis, we notice that there's some information in our dataset that is unlikely to be relevant, such as how many views or favourites the car posting gets, or the date of which it was posted. However, we need to run a t-test to make sure that those variables indeed do not have any influence on the final price of the car.
 
 [TO DO: - get rid of certain variables like Views etc., justify using math/stats (can't just say "pretty sure it won't affect anything") - pretty sure it's just a basic beta_i = 0 t-test? correct me if I'm wrong]
 
-## Categorical Vairable Analysis
+## Categorical Variable Analysis
 
-```{r}
+```{r echo=False, warning=FALSE}
 # List of all categorical variables
 categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
                       "color", "type_of_drive", "doors", "fuel", 
@@ -268,7 +185,7 @@ for (var in categorical_vars) {
 
 ## Model
 
-```{r}
+```{r echo=False, warning=FALSE}
 # List of all the variables to include in the model
 categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
                       "color", "type_of_drive", "doors", "fuel", 
@@ -286,9 +203,6 @@ full_model <- lm(price ~ views + favorite + post_info + year + A_C + emission_cl
                  seats_amount + horsepower + color + car_mileage + engine_capacity + 
                  type_of_drive + doors + fuel + car_type + gearbox, data = clean_data)
 
-# Summary of the model to see the coefficients and performance
-summary(full_model)
-
 # Check for multicollinearity (VIF - Variance Inflation Factor)
 vif(full_model)
 
@@ -302,12 +216,11 @@ step$anova
 final_model = lm(price ~ views + favorite + post_info + year + A_C + emission_class +
                    seats_amount + horsepower + engine_capacity + type_of_drive + fuel + 
                    car_type + gearbox, data = clean_data)
-summary(final_model)
 ```
 
 ## Model 2
 
-```{r}
+```{r echo=FALSE, warning=FALSE}
 # List of all the variables to include in the model
 categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
                       "color", "type_of_drive", "doors", "fuel", 
@@ -319,14 +232,6 @@ clean_data[categorical_vars] <- lapply(clean_data[categorical_vars], as.factor)
 # Check if columns like car_name are factors or should be treated as character (if needed)
 # Here we assume "car_name" is a unique identifier, so it should be excluded from the model
 clean_data$car_name <- as.factor(clean_data$car_name)
-
-# Fit the full linear model (including all variables except car_name as a unique identifier)
-#full_model <- lm(price ~ post_info + age + A_C + emission_class +
- #                seats_amount + horsepower + color + car_mileage + engine_capacity + 
-  #               type_of_drive + doors + fuel + car_type + gearbox, data = clean_data)
-
-# Summary of the model to see the coefficients and performance
-#summary(full_model)
 
 # Fit the linear model manually specifying all main effects and interaction terms
 full_model <- lm(price ~ 
@@ -364,18 +269,11 @@ final_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsep
      horsepower:fuel + horsepower:gearbox, 
      data = clean_data)
 
-# Check for multicollinearity (VIF - Variance Inflation Factor)
-#print(vif(final_model))
-
-summary(final_model)
 ```
 
 Diagnostics:
 
-```{r}
-# Load necessary library
-library(MASS)
-
+```{r warning=FALSE, echo=FALSE}
 # Box-Cox transformation for `price`
 boxcox_result <- boxcox(final_model, lambda = seq(-2, 2, by = 0.1), main = "Box-Cox Transformation")
 
@@ -383,7 +281,6 @@ boxcox_result <- boxcox(final_model, lambda = seq(-2, 2, by = 0.1), main = "Box-
 best_lambda <- boxcox_result$x[which.max(boxcox_result$y)]
 cat("Best lambda:", best_lambda, "\n")
 
-# Apply transformation based on best lambda
 if (abs(best_lambda) < 0.1) {
   clean_data$price <- log(clean_data$price)
   cat("Applied log transformation to `price`.\n")
@@ -398,7 +295,6 @@ cooks_threshold <- 4/n #might need to change
 influential_points <- which(cooks_d > cooks_threshold)
 clean_data <- clean_data[-which(cooks_d > cooks_threshold), ]
 
-# Refit the model after transformation
 final_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsepower + 
                      post_info + A_C + seats_amount + color + type_of_drive + 
                      doors + fuel + gearbox + age:A_C + age:seats_amount + 
@@ -411,25 +307,15 @@ final_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsep
                      horsepower:post_info + horsepower:seats_amount + horsepower:color + 
                      horsepower:fuel + horsepower:gearbox, 
                    data = clean_data)
-#par(mfrow = c(2, 2))  # Multiple plots in one window
-#plot(final_model)
-
-# Residual diagnostics plots
 par(mfrow = c(2, 2))
 plot(final_model)
 
 
-
-# Histogram of residuals
 hist(resid(final_model), breaks = 30, main = "Histogram of Residuals", 
      xlab = "Residuals", col = "lightblue")
 
-# Q-Q plot
 qqnorm(resid(final_model), main = "Q-Q Plot")
 qqline(resid(final_model), col = "red", lty = 2)
-
-# Load the `lmtest` library
-library(lmtest)
 
 # Perform Breusch-Pagan test
 bp_test <- bptest(final_model)
@@ -441,11 +327,13 @@ if (bp_test$p.value < 0.05) {
 } else {
   cat("No significant heteroscedasticity detected.\n")
 }
+
+summary(final_model)
 ```
 
 Using our hold-out validation set, we can perform a little bit more verification:
 
-```{r}
+```{r echo=FALSE, warning=FALSE}
 # validation data
 validation_data <- car_price_data
 validation_data[validation_data == ""] <- NA
@@ -499,122 +387,6 @@ MSPE2
 
 ```
 
-WLS is a next step since we failed heteroelasticity (equal variance) assumption. This means that we'd include a weight vector when fitting the model, and hopefully this would fix the equal variance problem.
+WLS is a next step since we failed homoscedasticity (equal variance) assumption. This means that we'd include a weight vector when fitting the model, and hopefully this would fix the equal variance problem.
 
-I don't really want to keep this code, but leaving this here in case someone wants to work with it.
-
-```{r}
-# Calculate weights based on residuals
-weights <- 1 / (resid(final_model)^2)
-
-# Fit WLS model
-wls_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsepower + 
-                   post_info + A_C + seats_amount + color + type_of_drive + 
-                   doors + fuel + gearbox + age:A_C + age:seats_amount + 
-                   age:color + age:type_of_drive + age:doors + age:fuel + 
-                   age:gearbox + car_mileage:post_info + car_mileage:A_C + car_mileage:seats_amount + 
-                   car_mileage:type_of_drive + car_mileage:doors + car_mileage:fuel + 
-                   car_mileage:gearbox + engine_capacity:post_info + 
-                   engine_capacity:A_C + engine_capacity:seats_amount + engine_capacity:type_of_drive + 
-                   engine_capacity:fuel + engine_capacity:gearbox + 
-                   horsepower:post_info + horsepower:seats_amount + horsepower:color + 
-                   horsepower:fuel + horsepower:gearbox, 
-                 data = clean_data, weights = weights)
-
-# Check diagnostics for the WLS model
-par(mfrow = c(2, 2))
-plot(wls_model)
-```
-
-[from here on is a load of garbage :( if you think you can help fix it, you're more than welcome. Though, it might be easier to just use this as code reference
-
--Rebecca]
-
-# dw about for now
-
-## Outlier Detection
-
-[TO DO, pretty sure outliers are causing some of these other tests to look weird or become incomprehensible?]
-
-Removing Leverage Points (outliers along X-axis):
-
-Removing outliers along Y-axis:
-
-Removing Influential Points:
-
-## Data Analysis
-
-[TO DO, need to analyse the variables by themselves - The violin plots are NOT what we want to see. Either they'll fix themselves after we remove outliers or we have to do something else]
-
-Now, we want to take a look at the distributions of our data, to see if there are any peculiarities that we should be aware of. For continuous data: **age**, **horsepower**, **car mileage**, and **engine capacity**, we examine their violin plots:
-
-```{r}
-non_empty_age <- clean_data[!is.na(clean_data$age) & !is.na(clean_data$age), ]
-
-age_graph <- ggplot(non_empty_age, aes(x = "", y = age)) +
-  geom_violin(fill = "purple", alpha = 0.5, trim=TRUE) +  
-  geom_boxplot(width = 0.1, alpha = 0.8) +    
-  labs(title = "Age Distribution", y = "Age", x = "")
-
-non_empty_hp <- data.frame(horsepower =
-                             as.integer(clean_data$horsepower[clean_data$horsepower != ""]))
-
-horsepower_graph <- ggplot(non_empty_hp, aes(x = "", y = horsepower)) +
-  geom_violin(fill = "blue", alpha = 0.5) +
-  geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.5) +
-  labs(title = "Horsepower Distribution", y = "Horsepower", x = "")
-
-non_empty_cm <- data.frame(car_mileage =
-                             as.integer(clean_data$car_mileage[clean_data$car_mileage != ""]))
-
-# Plot for "car_mileage"
-car_mileage_graph <- ggplot(clean_data, aes(x = "", y = car_mileage)) +
-  geom_violin(fill = "green", alpha = 0.5) +
-  geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.5) +
-  labs(title = "Car Mileage Distribution", y = "Mileage", x = "")
-
-non_empty_ec <- data.frame(engine_capacity =
-                             as.integer(clean_data$engine_capacity[clean_data$engine_capacity != ""]))
-
-# Plot for "engine_capacity"
-engine_capacity_graph <- ggplot(clean_data, aes(x = "", y = engine_capacity)) +
-  geom_violin(fill = "orange", alpha = 0.5) +
-  geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.5) +
-  labs(title = "Engine Capacity Distribution", y = "Capacity", x = "")
-
-all_plots <- age_graph + horsepower_graph + car_mileage_graph + engine_capacity_graph +
-  plot_layout(ncol =2) 
-print(all_plots)
-```
-
-## Correlation Analysis
-
-[Note from Rebecca (last person to work on this): this is a little broken right now.
-
--   need to modify the correlation chart to get rid of some useless variables like views
--   heatmap is not working I think bc there's a bunch of outliers in dataset. Going to clean out outliers first, then I'll get back to heatmap ]
-
-```{r}
-
-numeric_data <- clean_data[sapply(clean_data, is.numeric)]
-cor_matrix <- cor(numeric_data, use = "complete.obs")
-
-ggcorrplot(
-  cor_matrix, 
-  method = "square", 
-  type = "lower",  
-  lab = TRUE,      
-  title = "Correlation Heatmap",
-  colors = c("blue", "white", "red") 
-)
-
-clean_data$log_horsepower <- log10(as.integer(clean_data$horsepower))
-clean_data$log_car_mileage <- log10(as.integer(clean_data$car_mileage))
-
-ggplot(clean_data, aes(x = log_horsepower, y = log_car_mileage)) +
-  geom_bin2d(binwidth = c(10, 500)) +  # Adjust bin width for better visualization
-  scale_fill_gradient(low = "blue", high = "yellow") +  # Density color scale
-  labs(title = "Density of Horsepower vs. Car Mileage",
-       x = "Horsepower", y = "Car Mileage", fill = "Count") +
-  theme_minimal()
-```
+[TODO: future improvements/limitations of model]
