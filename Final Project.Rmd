@@ -11,8 +11,8 @@ output:
     template: null
 geometry: margin=2cm
 ---
-\newpage
----
+
+## \newpage
 
 ```{r setup, include=FALSE, echo=FALSE}
 library(dplyr)
@@ -29,7 +29,7 @@ library(lmtest)
 
 # Research Context
 
-The objective of this model is to investigate the intrinsic factors that affect Price of Cars in Serbia based off detailed car listings provided by an online marketplace. used a dataset from 2024 to examine variables like age, mileage, horsepower, and engine capacity. This research aims to help consumers, dealerships, and manufacturers better understand the car market dynamics. For Serbia, a country with a growing used car market, understanding these factors provides valuable insights. For example: Age: Do older cars lose value faster? Mileage: Does more usage lower prices significantly? Horsepower and engine capacity: Are they key drivers of value? This knowledge can guide buyers in making informed choices and sellers in pricing their vehicles competitively.
+The objective of this research is to investigate the intrinsic factors that affect Price of Cars in Serbia based off detailed car listings provided by an online marketplace using a dataset from 2024 to examine variables like age, mileage, horsepower, and engine capacity. This research aims to help consumers, dealerships, and manufacturers better understand the car market dynamics. For Serbia, a country with a growing used car market, understanding these factors provides valuable insights. For example: Age: Do older cars lose value faster? Mileage: Does more usage lower prices significantly? Horsepower and engine capacity: Are they key drivers of value? This knowledge can guide buyers in making informed choices and sellers in pricing their vehicles competitively.
 
 # Exploratory Data Analysis
 
@@ -151,7 +151,7 @@ ggcorrplot(
 )
 ```
 
-Before we delve further into data analysis, we notice that there's some information in our dataset that is unlikely to be relevant, such as how many views or favourites the car posting gets, or the date of which it was posted. However, we need to run a t-test to make sure that those variables indeed do not have any influence on the final price of the car. we will be removing views and favourites from our model for two main reasons: we wish to know the main intrinsic factors that help determine price, and because views and favourites reflect market interactions, which can be influenced by listing quality, pricing strategy, and marketing, rather than the car's characteristics.
+Before we delve further into data analysis, we notice that there's some information in our dataset that is unlikely to be relevant, such as how many views or favourites the car posting gets, or the date of which it was posted. However, we need to run a t-test to make sure that those variables indeed do not have any influence on the final price of the car. We will be removing views and favourites from our model for two main reasons: we wish to know the main intrinsic factors that help determine price, and because views and favourites reflect market interactions, which can be influenced by listing quality, pricing strategy, and marketing, rather than the car's characteristics.
 
 ## Categorical Variable Analysis
 
@@ -194,7 +194,7 @@ screenshots of violin charts for formatting purposes:
 
 ![](images/clipboard-3290551591.png){width="218"}
 
-## Model
+## Main Effect Model
 
 ```{r echo=FALSE, warning=FALSE}
 # List of all the variables to include in the model
@@ -229,7 +229,9 @@ final_model = lm(price ~ views + favorite + post_info + year + A_C + emission_cl
                    car_type + gearbox, data = clean_data)
 ```
 
-## Model 2
+We are worried this model may not capture any interaction between the variables. So, let's run an interaction model.
+
+## Model with Interaction Terms
 
 ```{r echo=FALSE, warning=FALSE}
 # List of all the variables to include in the model
@@ -282,7 +284,9 @@ final_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsep
 
 ```
 
-## Model 3
+It seems that some line assumptions maybe violated, so let's perform a Box-Cox transformation.
+
+## Model After Box-Cox Transformation
 
 ```{r warning=FALSE, echo=FALSE}
 # Box-Cox transformation for `price`
@@ -336,7 +340,7 @@ cat("summary of model (R^2, adj-R^2):", c(summary(final_model)$r.squared, summar
 
 ![](images/clipboard-2619822943.png){width="535"}
 
-We ran VIF to check for multicolinearity (high VIF could imply unreliable estimates), AIC to remove unnecessary parameters, and we made three models: main effect, model with interactions, and transformed interaction models. the final model had the highest coefficient of determination. we did a transformation from interaction model as we realized that the normality assumption may be violated based off model 2's qq-plot. model 2 had a higher R-squared value, which is a good indicator that the interaction terms improved model, it explained \~74% of variability in Price.
+We ran VIF to check for multicolinearity (high VIF could imply unreliable estimates), AIC to remove unnecessary parameters, and we made three models: main effect, model with interactions, and transformed interaction models. the final model had the highest coefficient of determination. we did a transformation from interaction model as we realized that the normality assumption may be violated based off the second model's qq-plot. The second model had a higher R-squared value, which is a good indicator that the interaction terms improved model, it explained \~74% of variability in Price. These $R^2$ values indicate that our model captures about 81% of variability in Price after Box-Cox tansformation, which is better.
 
 Using our hold-out validation set, we can perform a little bit more verification:
 
@@ -398,7 +402,7 @@ We used hold-out validation on our data: Trained 6652/7988 (83.3%) of the data T
 
 WLS is a next step since we failed homoscedasticity (equal variance based off bp test) assumption. This means that we'd include a weight vector when fitting the model, and hopefully this would fix the equal variance problem.
 
-Therefore, the most influential factors are: Age, Horsepower, Car Mileage, Engine Capacity. We are missing a lot of factors. Various visual or mechanical problems of the car might have a big influence and is missing from our data.
+Therefore, the most influential factors are: Age, Horsepower, Car Mileage, Engine Capacity. More factors in the data collection stage could help us improve our model. Various visual or mechanical problems of the car might have a big influence and is missing from our data.
 
 # References used:
 
