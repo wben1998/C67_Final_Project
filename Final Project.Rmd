@@ -1,14 +1,18 @@
 ---
-title: "STAC67 Final Project Report"
-author: "Nilson Gao, Vedat Goktepe, Rebecca Han, Ben Wang"
-date: "2024-12-03"
+title: "Analyzing Car Prices in Serbia"
+author:
+  - Nilson Gao (1008074049) - Background and Diagnostics
+  - Rebecca Han (1007808124) - Data Analysis
+  - Ben Wang (1007727024) - Models
+  - Vedat Goktepe (1007798661) - Validation and Conclusion
+date: "12-03-2024"
 output:
-  pdf_document: default
-  html_document:
-    df_print: paged
+  pdf_document:
+    template: null
+geometry: margin=2cm
 ---
-
-[TO DO: make this in title page as required by rubric]
+\newpage
+---
 
 ```{r setup, include=FALSE, echo=FALSE}
 library(dplyr)
@@ -25,7 +29,7 @@ library(lmtest)
 
 # Research Context
 
-The objective of this model is to investigate the intrinsic factors that affect Price of Cars in Serbia based off detailed car listings provided by an online marketplace where [TO DO - yap about car price significance, what question we want to answer, how this can be beneficial knowledge for consumers/dealerships/car companies/manufacturers/etc.] [For consumers it might be beneficial to know predicted prices to avoid getting overcharged]
+The objective of this model is to investigate the intrinsic factors that affect Price of Cars in Serbia based off detailed car listings provided by an online marketplace. used a dataset from 2024 to examine variables like age, mileage, horsepower, and engine capacity. This research aims to help consumers, dealerships, and manufacturers better understand the car market dynamics. For Serbia, a country with a growing used car market, understanding these factors provides valuable insights. For example: Age: Do older cars lose value faster? Mileage: Does more usage lower prices significantly? Horsepower and engine capacity: Are they key drivers of value? This knowledge can guide buyers in making informed choices and sellers in pricing their vehicles competitively.
 
 # Exploratory Data Analysis
 
@@ -39,7 +43,7 @@ validation_data <- read.csv("serbia_car_sales_price_2024.csv")
 
 Before we begin investigating, we notice that there are some issues with the data. Some rows are missing values under certain variables (i.e. #2, #233, #1705, etc.), and some variables are hard to work with. Knowing a car's **year** might be less informative than knowing its age, so we made a new column containing values for $2024-\text{Year}$ called **age**. A car's **horsepower** is significant, but it's hard to use that data when it's given as two values in the format $HP\ (kW)$, so we keep only the HP metric. Additionally, some variable names are hard to work with because of length or how it might interfere with R code, such as **car_mileage, km**, so we made those easier to process as well. As for the missing values, when we analyze the significance of a variable, we'll make sure to exclude rows where values for that variable are empty.
 
-```{r}
+```{r echo=FALSE}
 clean_data <- car_price_data
 clean_data[clean_data == ""] <- NA
 clean_data <- na.omit(clean_data)
@@ -68,7 +72,7 @@ grid.arrange(p1,p2,p3,p4,ncol=2)
 
 We notice that there are some influential points (and possibly leverage points) on the car_mileage predictor. Let's get rid of those using hat values and semistudentized residuals to detect which ones are too high:
 
-```{r}
+```{r echo=FALSE}
 outlier_clean <- function(data, model) {
   #removal of points in x (leverage points)
   leverage <- hatvalues(model)
@@ -94,7 +98,7 @@ outlier_clean <- function(data, model) {
 cm_model <- lm(price ~ car_mileage, data = clean_data)
 clean_cm <- outlier_clean(clean_data,cm_model)
 #trim car mileage for better visibility
-clean_cm2<- subset(clean_cm_data, car_mileage <= 750000)
+clean_cm2<- subset(clean_cm, car_mileage <= 750000)
 
 hp_model <- lm(price ~ horsepower, data = clean_data)
 clean_hp <- outlier_clean(clean_data, hp_model)
@@ -109,7 +113,7 @@ clean_ec <- outlier_clean(clean_data, ec_model)
 
 After outlier cleaning, let's check on the scatter plots again to see if these continuous variables have a significant influence on the car price:
 
-```{r}
+```{r echo=FALSE}
 cm_plot <- ggplot(clean_cm, aes(x = car_mileage, y = price)) + geom_point() +
   geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("car_mileage vs price")
 cm_plot2 <- ggplot(clean_cm2, aes(x = car_mileage, y = price)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "blue") + theme_minimal() + ggtitle("car_mileage vs price")
@@ -119,7 +123,7 @@ ec_plot <- ggplot(clean_ec, aes(x = engine_capacity, y = price)) + geom_point() 
 grid.arrange(cm_plot,cm_plot2, hp_plot, age_plot, ec_plot, ncol=3)
 ```
 
-[TODO: yap about graphs just like in slides]
+Now we can clearly see that price tends to decrease as age or mileage increases, and price tends to increase as horsepower or engine capacity increases. This gave us a lot of confidence in our dataset, since this is about what we logically expected to happen based on prior knowledge of how car pricing works.
 
 Now moving on to the categorical variables.
 
@@ -147,13 +151,11 @@ ggcorrplot(
 )
 ```
 
-Before we delve further into data analysis, we notice that there's some information in our dataset that is unlikely to be relevant, such as how many views or favourites the car posting gets, or the date of which it was posted. However, we need to run a t-test to make sure that those variables indeed do not have any influence on the final price of the car.
-
-[TO DO: - get rid of certain variables like Views etc., justify using math/stats (can't just say "pretty sure it won't affect anything") - pretty sure it's just a basic beta_i = 0 t-test? correct me if I'm wrong]
+Before we delve further into data analysis, we notice that there's some information in our dataset that is unlikely to be relevant, such as how many views or favourites the car posting gets, or the date of which it was posted. However, we need to run a t-test to make sure that those variables indeed do not have any influence on the final price of the car. we will be removing views and favourites from our model for two main reasons: we wish to know the main intrinsic factors that help determine price, and because views and favourites reflect market interactions, which can be influenced by listing quality, pricing strategy, and marketing, rather than the car's characteristics.
 
 ## Categorical Variable Analysis
 
-```{r echo=False, warning=FALSE}
+```{r echo=FALSE, warning=FALSE}
 # List of all categorical variables
 categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
                       "color", "type_of_drive", "doors", "fuel", 
@@ -176,16 +178,25 @@ for (var in categorical_vars) {
     geom_boxplot(width = 0.1, fill = "white", outlier.size = 0.5) +
     labs(title = paste("Price vs", var), y = "Price", x = "") +
     theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    print(plot)
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size=8))
 }
 
 
 ```
 
+screenshots of violin charts for formatting purposes:
+
+![](images/clipboard-1437518137.png){width="336"}
+
+![](images/clipboard-516585041.png){width="373"}
+
+![](images/clipboard-1035733135.png){width="239"}
+
+![](images/clipboard-3290551591.png){width="218"}
+
 ## Model
 
-```{r echo=False, warning=FALSE}
+```{r echo=FALSE, warning=FALSE}
 # List of all the variables to include in the model
 categorical_vars <- c("post_info", "A_C", "emission_class", "seats_amount", 
                       "color", "type_of_drive", "doors", "fuel", 
@@ -211,7 +222,7 @@ par(mfrow = c(2, 2))  # Multiple plots in one window
 plot(full_model)
 
 step = stepAIC(full_model, trace = FALSE, direction = "backward")
-step$anova
+print(head(step$anova))
 
 final_model = lm(price ~ views + favorite + post_info + year + A_C + emission_class +
                    seats_amount + horsepower + engine_capacity + type_of_drive + fuel + 
@@ -253,7 +264,7 @@ par(mfrow = c(2, 2))  # Multiple plots in one window
 plot(full_model)
 
 step = stepAIC(full_model, trace = FALSE, direction = "backward")
-step$anova
+print(head(step$anova))
 step$call
 
 final_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsepower + 
@@ -271,11 +282,11 @@ final_model <- lm(formula = price ~ age + car_mileage + engine_capacity + horsep
 
 ```
 
-Diagnostics:
+## Model 3
 
 ```{r warning=FALSE, echo=FALSE}
 # Box-Cox transformation for `price`
-boxcox_result <- boxcox(final_model, lambda = seq(-2, 2, by = 0.1), main = "Box-Cox Transformation")
+boxcox_result <- boxcox(final_model, lambda = seq(-2, 2, by = 0.1), main = "Box-Cox Transformation",plotit = FALSE)
 
 # Extract the best lambda (transformation parameter)
 best_lambda <- boxcox_result$x[which.max(boxcox_result$y)]
@@ -317,19 +328,15 @@ hist(resid(final_model), breaks = 30, main = "Histogram of Residuals",
 qqnorm(resid(final_model), main = "Q-Q Plot")
 qqline(resid(final_model), col = "red", lty = 2)
 
-# Perform Breusch-Pagan test
 bp_test <- bptest(final_model)
 print(bp_test)
 
-# Interpretation
-if (bp_test$p.value < 0.05) {
-  cat("Heteroscedasticity detected (p-value < 0.05). Consider WLS.\n")
-} else {
-  cat("No significant heteroscedasticity detected.\n")
-}
-
-summary(final_model)
+cat("summary of model (R^2, adj-R^2):", c(summary(final_model)$r.squared, summary(final_model)$adj.r.squared))
 ```
+
+![](images/clipboard-2619822943.png){width="535"}
+
+We ran VIF to check for multicolinearity (high VIF could imply unreliable estimates), AIC to remove unnecessary parameters, and we made three models: main effect, model with interactions, and transformed interaction models. the final model had the highest coefficient of determination. we did a transformation from interaction model as we realized that the normality assumption may be violated based off model 2's qq-plot. model 2 had a higher R-squared value, which is a good indicator that the interaction terms improved model, it explained \~74% of variability in Price.
 
 Using our hold-out validation set, we can perform a little bit more verification:
 
@@ -387,6 +394,12 @@ MSPE2
 
 ```
 
-WLS is a next step since we failed homoscedasticity (equal variance) assumption. This means that we'd include a weight vector when fitting the model, and hopefully this would fix the equal variance problem.
+We used hold-out validation on our data: Trained 6652/7988 (83.3%) of the data Tested on 1336/7988 (16.7%) of the data The standard error of the data: Standard Error of Training Data: \~3 This is expected, since it should almost perfectly align with what we have in training data (except for errors caused by lack of emission_class) Standard Error of Testing Data: \~6,655 Means that our prediction is only about \$6655 off of the actual price on average (not accounting for errors caused by lack of emission_class), meaning that it’s fairly accurate
 
-[TODO: future improvements/limitations of model]
+WLS is a next step since we failed homoscedasticity (equal variance based off bp test) assumption. This means that we'd include a weight vector when fitting the model, and hopefully this would fix the equal variance problem.
+
+Therefore, the most influential factors are: Age, Horsepower, Car Mileage, Engine Capacity. We are missing a lot of factors. Various visual or mechanical problems of the car might have a big influence and is missing from our data.
+
+# References used:
+
+Mmakarovlab. (2024). Car price prediction 2024 (fresh market posts). Retrieved from <https://www.kaggle.com/datasets/mmakarovlab/serbia-car-sales-prices?resource=download>
